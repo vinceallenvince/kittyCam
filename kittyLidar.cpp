@@ -8,7 +8,7 @@
 
 using namespace::std;
 
-typedef int (*fn)(LED &ledIndicator);
+typedef int (*fn)(LED);
 
 struct ChildProcess {
     char description[128];
