@@ -6,21 +6,38 @@
 #include "lidarLite.h"
 #include "LED.h"
 
+using namespace::std;
+
+typedef int (*fn)();
+
+struct ChildProcess {
+    char description[128];
+    fn func;
+};
+
 static int TOTAL_CALIBRATION_MEASUREMENTS = 10;
 static int TRIGGER_PIN = 7;
 
 void initWiring();
 int findLidarMaxDistance(int fd);
+
 int imageCapture(LED &ledIndicator);
+int launchChildProcess(int processIndex, ChildProcess *childProcesses, int totalChildProcesses, LED &ledIndicator);
+static int TOTAL_CHILD_PROCESSES = 2;
 
 int main(int argc,char *argv[]) {
+
+    ChildProcess childProcesses[TOTAL_CHILD_PROCESSES];
+
+    strcpy(childProcesses[0].description, "image capture");
+    childProcesses[0].func = imageCapture;
+
+    //
 
     initWiring();
     LED lidarIndicatorLED(TRIGGER_PIN);
 
     int fd, res, del;
-
-    pid_t childId = -1;
 
     // First arg is delay in ms (default is 100)
     if (argc > 1) {
@@ -40,13 +57,12 @@ int main(int argc,char *argv[]) {
 
         for (;;) {
             res = lidar_read(fd);
-            if (res < maxDistance * 0.9 && childId == -1)
+            if (res < maxDistance * 0.9)
             {
                 lidarIndicatorLED.on();
-                if (imageCapture(lidarIndicatorLED) == 0) {
+                if (launchChildProcess(0, childProcesses, TOTAL_CHILD_PROCESSES, lidarIndicatorLED) == 0) {
                     printf("PROCESS: Image capture successful.\n");
                 }
-
             } else {
                 lidarIndicatorLED.off();
             }
@@ -79,45 +95,53 @@ int findLidarMaxDistance(int fd) {
 }
 
 int imageCapture(LED &ledIndicator) {
+    time(&when);
+    printf("Image capture process started at %s", ctime(&when));
+    return system("sudo raspistill -o /home/pi/photos/photo3.jpg"); // capture image
+}
+
+int launchChildProcess(int processIndex, ChildProcess *childProcesses, int totalChildProcesses, LED &ledIndicator) {
 
     int status, waitTimeout = 0;
     pid_t childID, endID;
     time_t when;
 
-    if ((childID = fork()) == -1) {     /* Start a child process.      */
+    if ((childID = fork()) == -1) { // Start child process.
         perror("fork error");
         exit(EXIT_FAILURE);
     }
-    else if (childID == 0) {            /* This is the child.          */
-        time(&when);
-        printf("Image capture process started at %s", ctime(&when));
-        exit(system("sudo raspistill -o /home/pi/photos/photo3.jpg")); // capture image
+    else if (childID == 0) {    // The child process.
+        exit(childProcesses[processIndex].func());
     }
-    else {                              /* This is the parent.         */
+    else // The parent process.
+    {
+        char *descr = childProcesses[processIndex].description;
         time(&when);
         printf("Parent process started at %s", ctime(&when));
 
-        /* Wait for child process to terminate.           */
-        for(;;) {
+        for(;;) { // Wait for child process to terminate.
             endID = waitpid(childID, &status, WNOHANG|WUNTRACED);
-            if (endID == -1) {            /* error calling waitpid       */
+
+            if (endID == -1) // Error calling waitpid.
+            {
                 perror("waitpid error");
                 exit(EXIT_FAILURE);
             }
-            else if (endID == 0) {        /* child still running         */
+            else if (endID == 0) // Child still running.
+            {
                 time(&when);
-                printf("Waiting for image capture at %s", ctime(&when));
+                printf("Waiting for %s at %s", descr, ctime(&when));
                 waitTimeout++ % 2 == 0 ? ledIndicator.on() : ledIndicator.off();
-                //waitTimeout++;
                 sleep(1);
             }
-            else if (endID == childID) {  /* child ended                 */
+            else if (endID == childID) // Child ended.
+            {
                 if (WIFEXITED(status))
-                    printf("Image capture ended normally at %swith status: %d\n", ctime(&when), status);
+                    printf("%s ended normally. status: %d\n", descr, status);
                 else if (WIFSIGNALED(status))
-                    printf("Image capture ended because of an uncaught signal.\n");
+                    printf("%s ended because of an uncaught signal.\n", descr);
                 else if (WIFSTOPPED(status))
-                    printf("Image capture process has stopped.\n");
+                    printf("%s process has stopped.\n", descr);
                 return status;
             }
         }
