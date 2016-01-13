@@ -8,7 +8,7 @@
 
 using namespace::std;
 
-typedef int (*fn)();
+typedef int (*fn)(LED &ledIndicator);
 
 struct ChildProcess {
     char description[128];
@@ -95,8 +95,8 @@ int findLidarMaxDistance(int fd) {
 }
 
 int imageCapture(LED &ledIndicator) {
-    time(&when);
-    printf("Image capture process started at %s", ctime(&when));
+    //time(&when);
+    printf("Image capture process started at %s"); // use ctime(&when)
     return system("sudo raspistill -o /home/pi/photos/photo3.jpg"); // capture image
 }
 
