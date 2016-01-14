@@ -114,7 +114,7 @@ int imageCapture(LED &ledIndicator) { // TODO: remove LED param
     time_t when;
     time(&when);
     printf("Image capture process started at %s", ctime(&when));
-    int status = system("sudo raspistill -o /home/pi/photos/photo3.jpg"); // capture image
+    int status = system("sudo raspistill -o /home/pi/photos/photo3.jpg -x IFD0.Artist=KittyCam -md 4 -l /home/pi/latest.jpg"); // capture image
     printf("Image capture process ended at %s", ctime(&when));
     return status;
 }
