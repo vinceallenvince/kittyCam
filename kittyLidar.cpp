@@ -17,13 +17,30 @@ struct ChildProcess {
 
 static int TOTAL_CALIBRATION_MEASUREMENTS = 10;
 static int TRIGGER_PIN = 7;
+static int TOTAL_CHILD_PROCESSES = 2;
 
-void initWiring();
+/**
+ * Initialize wiringPi and configure the gpio settings.
+ */
+void configureWiring();
+
+/**
+ * Finds the maximum distance the lidar sensor can detect.
+ * @param fd The id of the lidar device.
+ */
 int findLidarMaxDistance(int fd);
 
+/**
+ * Make a call to the system camera to capture an image.
+ */
 int imageCapture(LED &ledIndicator);
+
+/**
+ * Launches a child process and blinks a status LED until complete.
+ * @param processIndex The index in an array of function pointers.
+ */
 int launchChildProcess(int processIndex, ChildProcess *childProcesses, int totalChildProcesses, LED &ledIndicator);
-static int TOTAL_CHILD_PROCESSES = 2;
+
 
 int main(int argc,char *argv[]) {
 
@@ -74,7 +91,7 @@ int main(int argc,char *argv[]) {
     return 0;
 }
 
-void initWiring() {
+void configureWiring() {
     wiringPiSetup();
     pinMode(TRIGGER_PIN, OUTPUT);
     digitalWrite(TRIGGER_PIN, LOW);
@@ -94,10 +111,13 @@ int findLidarMaxDistance(int fd) {
     return initialMeasurements / TOTAL_CALIBRATION_MEASUREMENTS;
 }
 
-int imageCapture(LED &ledIndicator) {
-    //time(&when);
-    printf("Image capture process started at %s"); // use ctime(&when)
-    return system("sudo raspistill -o /home/pi/photos/photo3.jpg"); // capture image
+int imageCapture(LED &ledIndicator) { // TODO: remove LED param
+    time_t when;
+    time(&when);
+    printf("Image capture process started at %s.", ctime(&when));
+    int status = system("sudo raspistill -o /home/pi/photos/photo3.jpg"); // capture image
+    printf("Image capture process ended at %s.", ctime(&when));
+    return status;
 }
 
 int launchChildProcess(int processIndex, ChildProcess *childProcesses, int totalChildProcesses, LED &ledIndicator) {
@@ -111,7 +131,7 @@ int launchChildProcess(int processIndex, ChildProcess *childProcesses, int total
         exit(EXIT_FAILURE);
     }
     else if (childID == 0) {    // The child process.
-        exit(childProcesses[processIndex].func());
+        exit(childProcesses[processIndex].func(ledIndicator));
     }
     else // The parent process.
     {
@@ -137,11 +157,11 @@ int launchChildProcess(int processIndex, ChildProcess *childProcesses, int total
             else if (endID == childID) // Child ended.
             {
                 if (WIFEXITED(status))
-                    printf("%s ended normally. status: %d\n", descr, status);
+                    printf("%s ended normally. status: %d at %s\n", descr, status, ctime(&when));
                 else if (WIFSIGNALED(status))
-                    printf("%s ended because of an uncaught signal.\n", descr);
+                    printf("%s ended because of an uncaught signal at %s.\n", descr, ctime(&when));
                 else if (WIFSTOPPED(status))
-                    printf("%s process has stopped.\n", descr);
+                    printf("%s process has stopped at %s.\n", descr, ctime(&when));
                 return status;
             }
         }
