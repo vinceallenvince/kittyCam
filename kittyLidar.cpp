@@ -22,7 +22,7 @@ static int TOTAL_CHILD_PROCESSES = 2;
 /**
  * Initialize wiringPi and configure the gpio settings.
  */
-void configureWiring();
+void initWiring();
 
 /**
  * Finds the maximum distance the lidar sensor can detect.
@@ -50,8 +50,7 @@ int main(int argc,char *argv[]) {
     childProcesses[0].func = imageCapture;
 
     //
-
-    configureWiring();
+    initWiring();
     LED lidarIndicatorLED(TRIGGER_PIN);
 
     int fd, res, del;
@@ -91,7 +90,7 @@ int main(int argc,char *argv[]) {
     return 0;
 }
 
-void configureWiring() {
+void initWiring() {
     wiringPiSetup();
     pinMode(TRIGGER_PIN, OUTPUT);
     digitalWrite(TRIGGER_PIN, LOW);
@@ -114,9 +113,9 @@ int findLidarMaxDistance(int fd) {
 int imageCapture(LED &ledIndicator) { // TODO: remove LED param
     time_t when;
     time(&when);
-    printf("Image capture process started at %s.", ctime(&when));
+    printf("Image capture process started at %s", ctime(&when));
     int status = system("sudo raspistill -o /home/pi/photos/photo3.jpg"); // capture image
-    printf("Image capture process ended at %s.", ctime(&when));
+    printf("Image capture process ended at %s", ctime(&when));
     return status;
 }
 
