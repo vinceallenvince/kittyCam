@@ -51,7 +51,7 @@ int main(int argc,char *argv[]) {
 
     //
 
-    initWiring();
+    configureWiring();
     LED lidarIndicatorLED(TRIGGER_PIN);
 
     int fd, res, del;
