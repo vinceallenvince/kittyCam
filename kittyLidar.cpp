@@ -8,7 +8,7 @@
 
 using namespace::std;
 
-typedef int (*fn)(LED&);
+typedef int (*fn)();
 
 struct ChildProcess {
     char description[128];
@@ -31,9 +31,15 @@ void initWiring();
 int findLidarMaxDistance(int fd);
 
 /**
+ * Make a call to the system camera to prepare to capture. This call
+ * should be blocking.
+ */
+int imageCalibration();
+
+/**
  * Make a call to the system camera to capture an image.
  */
-int imageCapture(LED &ledIndicator);
+int imageCapture();
 
 /**
  * Launches a child process and blinks a status LED until complete.
@@ -46,12 +52,24 @@ int main(int argc,char *argv[]) {
 
     ChildProcess childProcesses[TOTAL_CHILD_PROCESSES];
 
-    strcpy(childProcesses[0].description, "image capture");
-    childProcesses[0].func = imageCapture;
+    strcpy(childProcesses[0].description, "image calibration");
+    childProcesses[0].func = imageCalibration;
+
+    strcpy(childProcesses[1].description, "image capture");
+    childProcesses[1].func = imageCapture;
 
     //
+
     initWiring();
     LED lidarIndicatorLED(TRIGGER_PIN);
+
+    //
+
+    if (launchChildProcess(0, childProcesses, TOTAL_CHILD_PROCESSES, lidarIndicatorLED) == 0) {
+        printf("PROCESS: Image calibration successful.\n");
+    }
+
+    //
 
     int fd, res, del;
 
@@ -76,7 +94,7 @@ int main(int argc,char *argv[]) {
             if (res < maxDistance * 0.9)
             {
                 lidarIndicatorLED.on();
-                if (launchChildProcess(0, childProcesses, TOTAL_CHILD_PROCESSES, lidarIndicatorLED) == 0) {
+                if (launchChildProcess(1, childProcesses, TOTAL_CHILD_PROCESSES, lidarIndicatorLED) == 0) {
                     printf("PROCESS: Image capture successful.\n");
                 }
             } else {
@@ -110,11 +128,16 @@ int findLidarMaxDistance(int fd) {
     return initialMeasurements / TOTAL_CALIBRATION_MEASUREMENTS;
 }
 
-int imageCapture(LED &ledIndicator) { // TODO: remove LED param
+int imageCalibration() {
+    // waits for signal
+    return system("sudo raspistill -t 0 -s -o /home/pi/photos/hello%d.jpg -x IFD0.Artist=KittyCam -md 4 -l /home/pi/latest.jpg &");
+}
+
+int imageCapture() {
     time_t when;
     time(&when);
     printf("Image capture process started at %s", ctime(&when));
-    int status = system("sudo raspistill -o /home/pi/photos/photo3.jpg -x IFD0.Artist=KittyCam -md 4 -l /home/pi/latest.jpg"); // capture image
+    int status = system("killall -s SIGUSR1 raspistill");
     printf("Image capture process ended at %s", ctime(&when));
     return status;
 }
@@ -130,7 +153,7 @@ int launchChildProcess(int processIndex, ChildProcess *childProcesses, int total
         exit(EXIT_FAILURE);
     }
     else if (childID == 0) {    // The child process.
-        exit(childProcesses[processIndex].func(ledIndicator));
+        exit(childProcesses[processIndex].func());
     }
     else // The parent process.
     {
